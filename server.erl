@@ -8,14 +8,16 @@ start(ServerAtom) ->
     % - Spawn a new process which waits for a message, handles it, then loops infinitely
     % - Register this process to ServerAtom
     % - Return the process ID
+    genserver:start(ServerAtom, [],fun InsertMetod som "handles it" här). 
+    % sen kan vi pattern matcha för att göra olika saker beroende på vad vi får
     
     %spawn(server, test_for_print, [10]).
-    Pid1 = spawn(genserver, start, [ServerAtom]), %ksk använda sig av en record så som client.erl gör?
-    io:fwrite("next is spawn ~n", []),
-    Pid2 = spawn(?MODULE, ping, []),
-    io:fwrite("after spawn ~n", []),
-    Pid2 ! "tjosan!",
-    Pid2 ! "hejhopp".
+    % Pid1 = spawn(genserver, start, [ServerAtom]), %ksk använda sig av en record så som client.erl gör?
+    % io:fwrite("next is spawn ~n", []),
+    % Pid2 = spawn(?MODULE, ping, []),
+    % io:fwrite("after spawn ~n", []),
+    % Pid2 ! "tjosan!",
+    % Pid2 ! "hejhopp".
 
 
 ping() -> 
