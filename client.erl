@@ -30,6 +30,7 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 handle(St, {join, Channel}) ->
     % TODO: Implement this function
     % {reply, ok, St} ;
+    server:server_loop(server, {join, Channel}),
     {reply, {error, not_implemented, "join not implemented"}, St} ;
 
 % Leave channel
@@ -44,6 +45,7 @@ handle(St, {message_send, Channel, Msg}) ->
     % {reply, ok, St} ;
     {reply, {error, not_implemented, "message sending not implemented"}, St} ;
 
+%----------------------------------------------------------------------------------------------------------
 % This case is only relevant for the distinction assignment!
 % Change nick (no check, local only)
 handle(St, {nick, NewNick}) ->
