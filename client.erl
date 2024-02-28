@@ -6,9 +6,9 @@
 -record(client_st, {
     gui, % atom of the GUI process
     nick, % nick/username of the client
-    server % atom of the chat server
+    server, % atom of the chat server
+    server_st
 }).
-
 
 % Return an initial state record. This is called from GUI.
 % Do not change the signature of this function.
@@ -16,7 +16,8 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
     #client_st{
         gui = GUIAtom,
         nick = Nick,
-        server = ServerAtom
+        server = ServerAtom,
+        server_st = server:initial_server_state(ServerAtom, [])
     }.
 
 % handle/2 handles each kind of request from GUI
@@ -27,12 +28,49 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 %   - Data is what is sent to GUI, either the atom `ok` or a tuple {error, Atom, "Error message"}
 %   - NewState is the updated state of the client
 
-% Join channel
 handle(St, {join, Channel}) ->
     % TODO: Implement this function
     % {reply, ok, St} ;
-    server:server_loop(server, {join, Channel}),
-    {reply, {error, not_implemented, "join not implemented"}, St} ;
+    %io:fwrite("we made it to handle: ~n~p", [ServerSt]),
+    %catch genserver:request(St, {join, Channel}),
+    ServerSt = St#client_st.server_st,
+    io:fwrite(" server_state: ~n~p", [ServerSt]),
+    %A = catch genserver:request(St, {join, Channel, ServerSt}),
+    A = catch genserver:request(St#client_st.server, {join, Channel, ServerSt}),    %:server_loop(server, St, {join, Channel}),
+    io:fwrite("we came back: ~n", []),
+    io:fwrite("A: ~n~p", [A]),
+    %io:fwrite("B: ~n~p", [B]),
+    case A of 
+        ok ->
+            %{A, B};
+            io:fwrite("not imp handle: ~n", []),
+            not_implemented;
+        _ ->
+            {reply, {error, not_implemented, "join not implemented"}, St}
+    end;
+    %{reply, Data, NewState}
+    
+% Join channel
+handle(St, {join, Channel, ServerSt}) ->
+    % TODO: Implement this function
+    % {reply, ok, St} ;
+    io:fwrite("we made it to handle: ~n~p", [ServerSt]),
+    %catch genserver:request(St, {join, Channel}),
+    %ServerSt = St#client_st.server_st,
+    io:fwrite(" server_state: ~n~p", [ServerSt]),
+    %A = catch genserver:request(St, {join, Channel, ServerSt}),
+    A = catch genserver:request(St#client_st.server, {join, Channel, ServerSt}),    %:server_loop(server, St, {join, Channel}),
+    io:fwrite("A: ~n~p", [A]),
+    %io:fwrite("B: ~n~p", [B]),
+    case A of 
+        ok ->
+            %{A, B};
+            io:fwrite("not imp handle: ~n", []),
+            not_implemented;
+        _ ->
+            {reply, {error, not_implemented, "join not implemented"}, St}
+    end;
+    %{reply, Data, NewState}
 
 % Leave channel
 handle(St, {leave, Channel}) ->
@@ -72,4 +110,5 @@ handle(St, quit) ->
 
 % Catch-all for any unhandled requests
 handle(St, Data) ->
+    io:fwrite("the data 3: ~n~p", [Data]),
     {reply, {error, not_implemented, "Client does not handle this command"}, St} .
