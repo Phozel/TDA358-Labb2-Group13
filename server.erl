@@ -34,13 +34,14 @@ start(ServerAtom) ->
     % - Register this process to ServerAtom
     % - Return the process ID
     % genserver:start(ServerAtom, [],fun InsertMetod som "handles it" här),
-    catch genserver:start(ServerAtom, [], fun server_loop/2).
+    
+    catch genserver:start(ServerAtom, initial_server_state(ServerAtom, []), fun server_loop/2).
 
     % sen kan vi pattern matcha för att göra olika saker beroende på vad vi får
 
 % Main server loop function
 % Maybe remove ServerAtom?
-server_loop(ClientState, {Request, ChannelAtom, ServerSt}) ->
+server_loop(ServerSt, {Request, ChannelAtom, Nick}) ->
     io:fwrite("Got to serverloop ~n", []),
     case Request of
         % If /join is called
@@ -54,56 +55,52 @@ server_loop(ClientState, {Request, ChannelAtom, ServerSt}) ->
         %       join the newly created channel
         join -> 
             io:fwrite("got to server_loop for join ~n", []),
-            io:fwrite("ResultChannelExists: ~p~n", [isExistingChannel([ChannelAtom], ServerSt)]),
-            case isExistingChannel([ChannelAtom], ServerSt) of
+            io:fwrite("Nick: ~p~n", [Nick]),
+            %io:fwrite("ResultChannelExists: ~p~n", [isExistingChannel(list_to_atom(ChannelAtom), ServerSt#server_st.channel_list)]),
+            case lists:member(ChannelAtom, ServerSt#server_st.channel_list) of
                 true ->
                     io:fwrite("got to true ~n", []),
-                    %genserver:request(ChannelAtom, reply),
-                    %channel(ChannelAtom, {join,ClientState})
+                    Reply = genserver:request(ChannelAtom, {join, Nick}),
+                    io:fwrite("got past request ~n", []),
+                    %channel(ChannelAtom, {join,Nick}),
                     %check if isMember, if so join. Else 
-                    {reply, ok, ClientState};
+                    case Reply of 
+                        welcome -> 
+                            {reply, ok, ChannelAtom};
+                        alreadyInChannel -> 
+                            {reply, wasInChannel, ChannelAtom}
+                    end;
                     % ResultClientIsMember = isMember(ChannelAtom)
                         
                 false ->
-                    %initial_channel_state(ChannelAtom, []),
                     io:fwrite("got to false ~n", []),
-                    catch genserver:start(list_to_atom(ChannelAtom), #channel_st{channel = ChannelAtom, client_list = []}, fun channel/2),
+                    %catch genserver:start(list_to_atom(ChannelAtom), #channel_st{channel = ChannelAtom, client_list = []}, fun channel/2),
+                    catch genserver:start(ChannelAtom, initial_channel_state(ChannelAtom, []), fun channel/2),
                     io:fwrite("Channel List prior to adding channel to server: ~p~n", [ServerSt#server_st.channel_list]),
-                    ServerSt#server_st{channel_list = lists:append(ServerSt#server_st.channel_list, [ChannelAtom])},                    
-                    io:fwrite("Channel List after to adding channel to server: ~p~n", [ServerSt#server_st.channel_list]),
-                    server_loop(ClientState, {Request, ChannelAtom, ServerSt})
-                    %{reply, ChannelAtom, ClientState}
+
+                    NewList = lists:append(ServerSt#server_st.channel_list, [ChannelAtom]),
+                    NewServerSt = ServerSt#server_st{channel_list = NewList},
+                
+                    io:fwrite("list operation: ~p~n", [lists:append(ServerSt#server_st.channel_list, [ChannelAtom])]),               
+                    io:fwrite("Channel List after adding channel to server: ~p~n", [NewList]),
+                    Reply = catch genserver:request(ChannelAtom, {join, Nick, []}),
+                    {reply, Reply, NewServerSt}
             end
-            
-            
             %io:fwrite("got to server_loop for join ~n", [])
         end.
-
-% server_loop(ServerAtom, {Request_msg, Channel}) ->
-%     %case Channel of 
-%     server_loop(ServerAtom, {Request_msg, Channel});
-
-% server_loop(ServerAtom, Request_msg) ->
-%     server_loop(ServerAtom, Request_msg).
-
-isExistingChannel(Channel, ServerSt) ->
-    Channels = ServerSt#server_st.channel_list,
-    io:fwrite("Channel List: ~p~n", [Channels]),
-    lists:member(Channel, Channels).
-
-%isMember(Channel) ->
-    %lists:members(ClientState, client_list).
     
-channel(ChannelAtom, {join, {gui, nick, server}}) ->
+% Want to reach the channel's client_list somehow, maybe we can't have the client list as a parameter
+channel(ChannelAtom, {join, Nick, Client_list}) ->
     %{message_receive, Channel, Nick, Msg}, byt ut Channel mot self() om det inte är så att man ska skicka tillbaka atomen den är kopplad till
-    % case lists:member(nick, client_list) of
-    %     true ->
-    %         not_implemented;
-    %     false ->
-    %         not_implemented
-    % end.
-    io:fwrite("first channel ~n", []),
-    not_implemented;
+    case lists:member(nick, client_list) of
+        true ->
+            not_implemented;
+            %{reply, };
+        false ->
+            not_implemented
+            %{reply, };
+    end,
+    io:fwrite("first channel ~n", []);
 
 channel(ChannelAtom, {leave, {gui, nick, server}}) ->
     io:fwrite("second channel ~n", []),
