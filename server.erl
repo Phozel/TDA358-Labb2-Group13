@@ -5,7 +5,8 @@
 
 -record(server_st, { % kopierat från client.erl
     server_atom, % atom of server
-    channel_list % list of channels in server
+    channel_list, % list of channels in server
+    channel_dict
 }).
 
 -record(channel_st, {
@@ -16,7 +17,8 @@
 initial_server_state(ServerAtom, ChannelList)->
     #server_st{
         server_atom = ServerAtom,
-        channel_list = ChannelList
+        channel_list = ChannelList,
+        channel_dict = []
     }.
 
 initial_channel_state(ChannelAtom, Client_list) ->
@@ -41,8 +43,9 @@ start(ServerAtom) ->
 
 % Main server loop function
 % Maybe remove ServerAtom?
-server_loop(ServerSt, {Request, ChannelAtom, Nick}) ->
+server_loop(ServerSt, {Request, ChannelAtom, Nick, Msg}) ->
     io:fwrite("Got to serverloop ~n", []),
+
     case Request of
         % If /join is called
         % check if channel exists
@@ -79,17 +82,31 @@ server_loop(ServerSt, {Request, ChannelAtom, Nick}) ->
                     %io:fwrite("Channel List prior to adding channel to server: ~p~n", [ServerSt#server_st.channel_list]),
 
                     NewList = lists:append(ServerSt#server_st.channel_list, [ChannelAtom]),
-                    NewServerSt = ServerSt#server_st{channel_list = NewList},
+                    NewDict = lists:append(ServerSt#server_st.channel_dict, [{ChannelAtom, ChannelState}]),
+                    NewServerSt = ServerSt#server_st{channel_list = NewList, channel_dict = NewDict},
                 
                     %io:fwrite("list operation: ~p~n", [lists:append(ServerSt#server_st.channel_list, [ChannelAtom])]),               
-                    io:fwrite("Channel List after adding channel to server: ~p~n", [NewList]),
+                    io:fwrite("Channel List after adding chaServerSt#server_st.nnel to server: ~p~n", [NewList]),
                     Reply = catch genserver:request(ChannelState#channel_st.channel, {join, Nick, ChannelState}),
                     io:fwrite("Reply is: ~p~n", [Reply]),
+                    ChannelSt = getChannelState(ChannelAtom, NewServerSt#server_st.channel_dict),
+                    io:fwrite("ChannelSt: ~p~n", [ChannelSt]),
                     %{reply, Reply, ChanAtom} %får se om det går att skicka tillbaka detta
                     {reply, Reply, NewServerSt}
-            end
+            end;
             %io:fwrite("got to server_loop for join ~n", [])
-        end.
+        leave ->
+            %Reply = catch genserver:request(ChannelAtom, {leave, Nick, ChannelState}),
+            %{reply, Reply, ServerSt},
+            not_implemented;
+        
+        message_send ->
+            %Reply = catch genserver:request(ChannelState#channel_st.channel, {message_send, Nick, Msg, ChannelState}),
+            
+            not_implemented
+
+    end.
+
     
 % Want to reach the channel's client_list somehow, maybe we can't have the client list as a parameter
 channel(ChannelAtom, {join, Nick, ChannelSt}) ->
@@ -106,15 +123,38 @@ channel(ChannelAtom, {join, Nick, ChannelSt}) ->
     end;
     
 
-channel(ChannelAtom, {leave, {gui, nick, server}}) ->
-    io:fwrite("second channel ~n", []),
-    %{message_receive, Channel, Nick, Msg}, byt ut Channel mot self() om det inte är så att man ska skicka tillbaka atomen den är kopplad till
-    not_implemented;
+channel(ChannelAtom, {leave, Nick, ChannelSt}) ->
+    case lists:member(Nick, ChannelSt#channel_st.client_list) of
+        true ->
+            NewList = lists:delete(Nick, ChannelSt#channel_st.client_list),
+            NewChannelSt = ChannelSt#channel_st{client_list = NewList},
+            {reply, {ok, ChannelAtom}, NewChannelSt};
+        false ->
+            {reply, {user_not_joined, ChannelAtom}, ChannelSt}
+    end;
 
-channel(ChannelAtom, {_}) ->
+
+channel(ChannelAtom, {message_send, Nick, Message, ChannelSt}) ->
     io:fwrite("third channel ~n", []),
+    case lists:member(Nick, ChannelSt#channel_st.client_list) of
+        true -> 
+            %send message and then reply
 
-    not_implemented.
+            {reply, {ok, ChannelAtom}, ChannelSt},
+            not_implemented;
+        false ->
+            {reply, user_not_joined, ChannelAtom, ChannelSt}
+    end.
+    %not_implemented;
+
+getChannelState(ChannelAtom, ServerDict) ->
+    ChannelTuple = lists:keyfind(ChannelAtom, 1, ServerDict),
+    case ChannelTuple of
+        false ->
+            not_implemented;
+        _ ->
+            {element(2, ChannelTuple)}
+    end.
 
 % Stop the server process registered to the given name,
 % together with any other associated processes
