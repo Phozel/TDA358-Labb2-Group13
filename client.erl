@@ -37,7 +37,7 @@ handle(St, {join, Channel}) ->
     io:fwrite("nick: ~p~n ", [St#client_st.nick]),
     %A = catch genserver:request(St, {join, Channel, ServerSt}),
     %A = genserver:request(list_to_atom(St#client_st.nick), {join, Channel}),    %:server_loop(server, St, {join, Channel}),
-    {A, ChannelAtom} = genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick}), 
+    {A, ChannelAtom} = genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick, ""}), 
     io:fwrite("we came back: ~n", []),
     io:fwrite("A: ~n~p", [A]),
     %io:fwrite("B: ~n~p", [B]),
@@ -60,12 +60,23 @@ handle(St, {join, Channel}) ->
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
-    {reply, {error, not_implemented, "leave not implemented"}, St} ;
+    {A, ChannelAtom} = genserver:request(St#client_st.server, {leave, list_to_atom(Channel), St#client_st.nick, ""}),
+
+    case A of
+
+        ok -> 
+            NewList = lists:delete(ChannelAtom, St#client_st.channel_list),
+            NewClientSt = St#client_st{channel_list = NewList},
+
+            {reply, A, NewClientSt};
+        _ ->
+            {reply, {error, Channel, "user_not_joined"}, St}
+    end;
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
+
+    {A, ChannelAtom} = genserver:request(St#client_st.server, {message_send, list_to_atom(Channel), St#client_st.nick, Msg}),
     % TODO: Implement this function
     % {reply, ok, St} ;
     {reply, {error, not_implemented, "message sending not implemented"}, St} ;
