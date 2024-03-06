@@ -29,52 +29,32 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 %   - Data is what is sent to GUI, either the atom `ok` or a tuple {error, Atom, "Error message"}
 %   - NewState is the updated state of the client
 
+% Join channel
 handle(St, {join, Channel}) ->
     % TODO: Implement this function
     % {reply, ok, St} ;
-
+    io:fwrite("the first client channel join ~n", []),
     io:fwrite("nick: ~p~n ", [St#client_st.nick]),
     %A = catch genserver:request(St, {join, Channel, ServerSt}),
     %A = genserver:request(list_to_atom(St#client_st.nick), {join, Channel}),    %:server_loop(server, St, {join, Channel}),
-    {A,Channel} = genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick}), 
+    {A, ChannelAtom} = genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick}), 
     io:fwrite("we came back: ~n", []),
     io:fwrite("A: ~n~p", [A]),
     %io:fwrite("B: ~n~p", [B]),
     case A of 
         
         ok ->
+            NewList = lists:append(St#client_st.channel_list, ChannelAtom),
+            NewClientSt = St#client_st{channel_list = NewList},
             %{A, B};
             %lists:
             %add channel to channel list
-            io:fwrite("not imp handle: ~n", []),
-            {reply, {error, not_implemented, "ok part of join not implemented"}, St};
+            io:fwrite("ok in client: ~n", []),
+            {reply, ok, NewClientSt};
         % alreadyInChannel ->
         %     {reply, }
         _ ->
-            {reply, {error, not_implemented, "join not implemented"}, St}
-    end;
-    %{reply, Data, NewState}
-    
-% Join channel
-handle(St, {join, Channel, channel_list}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
-    io:fwrite("we made it to handle: ~n", []),
-    %catch genserver:request(St, {join, Channel}),
-    %ServerSt = St#client_st.server_st,
-    io:fwrite(" client nick: ~n~p", [St#client_st.nick]),
-    %A = catch genserver:request(St, {join, Channel, ServerSt}),
-    {A, Channel} = catch genserver:request(St#client_st.server, {join, Channel, St#client_st.nick}),    %:server_loop(server, St, {join, Channel}),
-    io:fwrite("A: ~n~p", [A]),
-    %io:fwrite("B: ~n~p", [B]),
-    case A of 
-        ok ->
-            %{A, B};
-            %add channel to channel list
-            io:fwrite("not imp handle: ~n", []),
-            not_implemented;
-        _ ->
-            {reply, {error, not_implemented, "join not implemented"}, St}
+            {reply, {error, A,  "Error in join"}, St}
     end;
     %{reply, Data, NewState}
 
