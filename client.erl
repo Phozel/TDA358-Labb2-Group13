@@ -18,7 +18,6 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
         nick = Nick,
         server = ServerAtom,
         channel_list = []
-        %server_st = server:initial_server_state(ServerAtom, [])
     }.
 
 % handle/2 handles each kind of request from GUI
@@ -31,34 +30,25 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 
 % Join channel
 handle(St, {join, Channel}) ->
-    % TODO: Implement this function
-
-
-
+    %TODO: Check if the server exists/responds
     case lists:member(Channel, St#client_st.channel_list) of
         true -> 
             {reply, {error, user_already_joined, "user_already_joined"}, St};
         false -> 
             A = genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick, self(), ""}), 
-            io:fwrite("A: ~n~p", [A]),
             case A of 
                 ok ->
                     % io:fwrite("the first client channel join ~n", []),
                     % io:fwrite("nick: ~p~n ", [St#client_st.nick]),
                     NewList = lists:append(St#client_st.channel_list, [Channel]),
                     NewClientSt = St#client_st{channel_list = NewList},
-                    io:fwrite("ok in client: ~n", []),
                     {reply, ok, NewClientSt};
                 alreadyInChannel ->
                     % If we ever get here, then there is an inconsistency between the client and channels.
                     % The client thinks it isn't a member of the requested channel at the same time as the channel
                     % has the client logged as a member.
-                    io:fwrite("desync between channel and client: ~n ", []),
-                    % io:fwrite("channellist b4 change : ~p~n ", [St#client_st.channel_list]),
-                    % io:fwrite("channel : ~p~n ", [Channel]),
                     NewList = lists:append(St#client_st.channel_list, [Channel]),
                     NewClientSt = St#client_st{channel_list = NewList},
-                    io:fwrite("channel list ~p~n", [St#client_st.channel_list]),
                     {reply, {error, user_already_joined, "user_already_joined"}, NewClientSt};
                 _ ->
                     {reply, {error, A,  "Error in join"}, St}
@@ -67,7 +57,6 @@ handle(St, {join, Channel}) ->
 
 % Leave channel
 handle(St, {leave, Channel}) ->
-    % TODO: implement this function
     case lists:member(Channel ,St#client_st.channel_list) of
         true -> 
             A = genserver:request(St#client_st.server, {leave, list_to_atom(Channel), St#client_st.nick, self(), ""}),
@@ -88,13 +77,15 @@ handle(St, {leave, Channel}) ->
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    % TODO: Implement this function
-    % {reply, ok, St} ;
     case lists:member(Channel ,St#client_st.channel_list) of
         true ->
-            A = genserver:request(St#client_st.server, {message_send, list_to_atom(Channel), St#client_st.nick, Msg}),
-            %TODO: fortsätt här :)
-            {reply, A, St};
+            Reply = catch genserver:request(St#client_st.server, {message_send, list_to_atom(Channel), St#client_st.nick, self(), Msg}),
+            case Reply of  
+                ok ->
+                    {reply, Reply, St};
+                _ ->
+                    {reply, {error, Channel, "user_not_joined"}, St}
+            end;
         false ->
             {reply, {error, Channel, "user_not_joined"}, St}
     end;
