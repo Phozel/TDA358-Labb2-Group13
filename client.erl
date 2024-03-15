@@ -31,18 +31,24 @@ initial_state(Nick, GUIAtom, ServerAtom) ->
 % Join channel
 handle(St, {join, Channel}) ->
     %TODO: Check if the server exists/responds
+    
     case lists:member(Channel, St#client_st.channel_list) of
         true -> 
             {reply, {error, user_already_joined, "user_already_joined"}, St};
         false -> 
-            A = genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick, self(), ""}), 
+            A = catch genserver:request(St#client_st.server, {join, list_to_atom(Channel), St#client_st.nick, self(), ""}), 
             case A of 
+                timeout_error -> 
+                    {reply,{error, server_not_reached, "Server didn't respond"}, St};
+                {'EXIT', _} -> 
+                    {reply, {error, server_not_reached, "Server didn't respond"}, St};
                 ok ->
                     % io:fwrite("the first client channel join ~n", []),
                     % io:fwrite("nick: ~p~n ", [St#client_st.nick]),
                     NewList = lists:append(St#client_st.channel_list, [Channel]),
                     NewClientSt = St#client_st{channel_list = NewList},
                     {reply, ok, NewClientSt};
+
                 alreadyInChannel ->
                     % If we ever get here, then there is an inconsistency between the client and channels.
                     % The client thinks it isn't a member of the requested channel at the same time as the channel
@@ -51,6 +57,7 @@ handle(St, {join, Channel}) ->
                     NewClientSt = St#client_st{channel_list = NewList},
                     {reply, {error, user_already_joined, "user_already_joined"}, NewClientSt};
                 _ ->
+                    io:fwrite("A in join: ~p~n ", [A]),
                     {reply, {error, A,  "Error in join"}, St}
             end
     end;    
@@ -59,36 +66,52 @@ handle(St, {join, Channel}) ->
 handle(St, {leave, Channel}) ->
     case lists:member(Channel ,St#client_st.channel_list) of
         true -> 
-            A = genserver:request(St#client_st.server, {leave, list_to_atom(Channel), St#client_st.nick, self(), ""}),
+            A = catch genserver:request(St#client_st.server, {leave, list_to_atom(Channel), St#client_st.nick, self(), ""}),
             case A of
+                timeout_error -> 
+                    {reply,{error, server_not_reached, "Server didn't respond"}, St};
+                {'EXIT', _} -> 
+                    {reply, ok, St}; %when we try to leave a server that
                 ok -> 
                     NewList = lists:delete(Channel, St#client_st.channel_list),
                     NewClientSt = St#client_st{channel_list = NewList},
                     {reply, A, NewClientSt};
                 channel_doesnt_have_client ->
-                    not_implemented;
+                    {reply, {error, user_not_joined, "user_not_joined"}, St};
                 _ ->
-                    {reply, {error, Channel, "error occurred"}, St}
+                    io:fwrite("A in leave: ~p~n ", [A]),
+                    {reply, ok, St} 
             end;
 
         false -> 
-            {reply, {error, Channel, "user_not_joined"}, St}
+            {reply, {error, user_not_joined, "user_not_joined"}, St}
     end;
 
 % Sending message (from GUI, to channel)
 handle(St, {message_send, Channel, Msg}) ->
-    case lists:member(Channel ,St#client_st.channel_list) of
-        true ->
-            Reply = catch genserver:request(St#client_st.server, {message_send, list_to_atom(Channel), St#client_st.nick, self(), Msg}),
-            case Reply of  
-                ok ->
-                    {reply, Reply, St};
-                _ ->
-                    {reply, {error, Channel, "user_not_joined"}, St}
+    %Reply = catch genserver:request(St#client_st.server, {message_send, list_to_atom(Channel), St#client_st.nick, self(), Msg}),
+    Reply = catch genserver:request(list_to_atom(Channel), {message_send, St#client_st.nick, Msg, self()}),
+    case Reply of  
+            timeout_error -> 
+                {reply,{error, server_not_reached, "Server didn't respond, timeout_error"}, St};
+            {'EXIT', _} -> 
+                {reply, {error, server_not_reached, "Server didn't respond, Exit"}, St};
+            % {'EXIT', _} -> 
+            %     {reply, ok, St};
+            ok ->
+                {reply, Reply, St};
+            user_not_joined ->
+                {reply, {error, Reply, "user_not_joined"}, St};
+            _ ->
+                io:fwrite("Reply in msg_send: ~p~n ", [Reply]),
+                {reply, {error, server_not_reached, "Server didn't respond"}, St}
             end;
-        false ->
-            {reply, {error, Channel, "user_not_joined"}, St}
-    end;
+    % case lists:member(Channel ,St#client_st.channel_list) of
+    %     true ->
+            
+    %     false ->
+    %         {reply, {error, user_not_joined, "user_not_joined"}, St}
+    % end;
 
 %----------------------------------------------------------------------------------------------------------
 % This case is only relevant for the distinction assignment!
