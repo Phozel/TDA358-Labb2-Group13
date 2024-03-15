@@ -36,13 +36,12 @@ start(ServerAtom) ->
     catch genserver:start(ServerAtom, initial_server_state(ServerAtom, []), fun server_loop/2).
 
 % Main server loop function
-% Maybe remove ServerAtom?
 server_loop(ServerSt, {Request, ChannelAtom, Nick, ClientID, Msg}) ->
     case Request of
         join -> 
             case lists:member(ChannelAtom, ServerSt#server_st.channel_list) of
                 true ->
-                    Replymsg = genserver:request(ChannelAtom, {join, Nick, ClientID}),
+                    Replymsg = catch genserver:request(ChannelAtom, {join, Nick, ClientID}),
                     {reply, Replymsg, ServerSt};
                         
                 false ->
@@ -63,8 +62,14 @@ server_loop(ServerSt, {Request, ChannelAtom, Nick, ClientID, Msg}) ->
             Reply = catch genserver:request(ChannelAtom, {message_send, Nick, Msg, ClientID}),
             {reply, Reply, ServerSt}
             
+    end;
 
-    end.
+server_loop(ServerSt, stop) ->
+    lists:foreach(fun(ChannelAtom) -> 
+        catch genserver:stop(ChannelAtom) end, ServerSt#server_st.channel_list),
+    catch genserver:stop(ServerSt),
+    {reply, ok, ServerSt#server_st{channel_list = []}}.
+    %Reply = catch genserver:request(ServerSt, stop);
  
 % Want to reach the channel's client_list somehow, maybe we can't have the client list as a parameter
 channel(ChannelSt, {join, Nick, ClientID}) ->
@@ -92,7 +97,6 @@ channel(ChannelSt, {message_send, Nick, Message, ClientID}) ->
         true -> 
             %We create a list without the sender so that they don't message themselves.
             OtherClients = lists:delete([Nick, ClientID], ChannelSt#channel_st.client_list),
-            
             %
             spawn(fun()->lists:foreach(
                 fun(ClientInfo) ->
@@ -100,7 +104,7 @@ channel(ChannelSt, {message_send, Nick, Message, ClientID}) ->
                     if ClientID == X -> 
                         skip;
                     true ->
-                        genserver:request(X, {message_receive, atom_to_list(ChannelSt#channel_st.channel), Nick, Message})
+                        catch genserver:request(X, {message_receive, atom_to_list(ChannelSt#channel_st.channel), Nick, Message})
                     end
                 end,
             OtherClients) end),
@@ -109,21 +113,10 @@ channel(ChannelSt, {message_send, Nick, Message, ClientID}) ->
             {reply, user_not_joined, ChannelSt}
     end.
 
-% recSendMsg(ChannelSt, Msg, ClientList) ->
-%     case ClientList of 
-%         [] -> 
-%             ok;
-%         [[CurrNick, CurrID] | OtherClients] ->
-%             CurrID ! {request, CurrID, make_ref(), {message_receive, ChannelSt#channel_st.channel, CurrNick, Msg}},
-%             recSendMsg(ChannelSt, Msg, OtherClients)
-%     end.
-    
-    
-
 % Stop the server process registered to the given name,
 % together with any other associated processes
 stop(ServerAtom) ->
-    lists:foreach(genserver:stop(), ServerAtom#server_st.channel_list),
-    genserver:stop(ServerAtom),
+    catch genserver:request(ServerAtom, stop),
+    catch genserver:stop(ServerAtom),
     {reply, ok}.
 
